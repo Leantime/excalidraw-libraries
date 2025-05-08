@@ -71,7 +71,30 @@ const sortBy = {
   default: {
     label: "Default",
     func: (items) => {
-      return sortBy.downloadsTotal.func(items);
+      const sortedByNewAsc = sortBy.new.func(items);
+
+      const TWO_WEEKS = 12096e5;
+
+      const timeTwoWeeksAgo = new Date(Date.now() - TWO_WEEKS);
+
+      const indexOfItemOlderThan2WeeksAsc =
+        sortedByNewAsc.length -
+        sortedByNewAsc
+          .slice()
+          .reverse()
+          .findIndex((x) => {
+            return new Date(x.created) <= timeTwoWeeksAgo;
+          });
+
+      const topNewItemsAsc = sortedByNewAsc.slice(
+        indexOfItemOlderThan2WeeksAsc,
+      );
+
+      const downloadPerWeekAsc = sortBy.downloadsWeek.func(
+        sortedByNewAsc.slice(0, indexOfItemOlderThan2WeeksAsc),
+      );
+
+      return downloadPerWeekAsc.concat(topNewItemsAsc);
     },
   },
   new: {
@@ -117,9 +140,10 @@ const APP_NAMES = {
   "Excalidraw+": "https://app.excalidraw.com",
   Excalidraw: "https://excalidraw.com",
   Excalideck: "https://app.excalideck.com",
+	Leantime: "https://accounts.leantime.io"
 };
 
-let appName = "";
+let appName = "Leantime";
 
 const getAppName = (referrer) => {
   return (appName =
@@ -127,7 +151,7 @@ const getAppName = (referrer) => {
     Object.entries(APP_NAMES).find(([appName, domain]) => {
       return referrer.includes(domain);
     })?.[0] ||
-    "Excalidraw");
+    "Leantime");
 };
 // -----------------------------------------------------------------------------
 
@@ -171,19 +195,6 @@ const initImageLazyLoading = () => {
   }
 };
 
-const escapeHTMLAttribute = (str) => {
-  const map = {
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-  };
-
-  if (typeof str !== "string") return "";
-
-  return str.replace(/[&<>"]/g, (char) => map[char]);
-};
-
 const populateLibraryList = (filterQuery = "") => {
   const items = [
     ...document.getElementById("template").parentNode.children,
@@ -208,15 +219,11 @@ const populateLibraryList = (filterQuery = "") => {
   }
   const template = document.getElementById("template");
   const searchParams = new URLSearchParams(location.search);
-  const referrer = escapeHTMLAttribute(
-    searchParams.get("referrer") || "https://excalidraw.com",
-  );
+  const referrer = searchParams.get("referrer") || "https://excalidraw.com";
   const appName = getAppName(referrer);
-  const target = decodeURIComponent(
-    escapeHTMLAttribute(searchParams.get("target")) || "_blank",
-  );
+  const target = decodeURIComponent(searchParams.get("target") || "_blank");
   const useHash = searchParams.get("useHash");
-  const csrfToken = escapeHTMLAttribute(searchParams.get("token"));
+  const csrfToken = searchParams.get("token");
   for (let library of libraries) {
     const div = document.createElement("div");
     div.classList.add("library");
@@ -259,9 +266,7 @@ const populateLibraryList = (filterQuery = "") => {
       inner = inner.replace('<p class="updated">Updated: {updated}</p>', "");
     }
     inner = inner.replace(/\{appName\}/g, appName);
-    const libraryUrl = encodeURIComponent(
-      `${escapeHTMLAttribute(origin)}/${source}`,
-    );
+    const libraryUrl = encodeURIComponent(`${location.origin}/${source}`);
     inner = inner.replace(
       "{addToLib}",
       `${referrer}${useHash ? "#" : "?"}addLibrary=${libraryUrl}${
@@ -327,18 +332,7 @@ const scrollToAnchor = () => {
 
 const handleTheme = (theme) => {
   const searchParams = new URLSearchParams(location.search);
-  searchParams.set("theme", theme);
-  history.pushState("", "theme", `?` + searchParams.toString() + location.hash);
-
-  if (theme === "dark") {
-    document.querySelector("html").classList.add("theme--dark");
-    document.querySelector("#light").classList.remove("is-hidden");
-    document.querySelector("#dark").classList.add("is-hidden");
-  } else if (theme === "light") {
-    document.querySelector("#light").classList.add("is-hidden");
-    document.querySelector("#dark").classList.remove("is-hidden");
-    document.querySelector("html").classList.remove("theme--dark");
-  }
+ 
 };
 
 // -----------------------------------------------------------------------------
@@ -346,10 +340,6 @@ const handleTheme = (theme) => {
 // -----------------------------------------------------------------------------
 
 // Add listeners to handle theme change
-const themes = document.querySelectorAll("#theme .option");
-themes.forEach((theme) =>
-  theme.addEventListener("click", () => handleTheme(theme.id)),
-);
 
 const urlParams = new URLSearchParams(window.location.search);
 
@@ -374,7 +364,6 @@ document.documentElement.addEventListener("keypress", (event) => {
   }
 });
 
-handleTheme(urlParams.get("theme") ?? "light");
 populateSorts();
 
 fetchJSONFile("libraries.json", (libraries) => {
